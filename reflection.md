@@ -3,6 +3,10 @@
 ## 1. System Design
 
 **a. Initial design**
+The user should be able to:
+1. Add basic owner + pet info
+2. Let user add/edit tasks
+3. Generate daily plan
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?

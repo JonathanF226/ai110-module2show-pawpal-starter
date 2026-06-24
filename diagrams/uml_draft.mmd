@@ -1,0 +1,48 @@
+classDiagram
+    %% PawPal+ — pet care planning app
+    %% Owner has a Pet, a Pet has many Tasks, a Scheduler builds a daily plan.
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +list~str~ preferences
+        +Pet pet
+        +add_pet(pet Pet) None
+        +set_available_minutes(minutes int) None
+        +add_preference(preference str) None
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +list~Task~ tasks
+        +add_task(task Task) None
+        +remove_task(task Task) None
+        +get_tasks() list~Task~
+    }
+
+    class Task {
+        +str name
+        +int duration_minutes
+        +str priority
+        +str recurrence
+        +bool completed
+        +priority_rank() int
+        +mark_complete() None
+        +is_recurring() bool
+    }
+
+    class Scheduler {
+        +int time_budget
+        +list~Task~ tasks
+        +sort_by_priority(tasks list~Task~) list~Task~
+        +filter_by_budget(tasks list~Task~) list~Task~
+        +build_plan() list~Task~
+        +explain_plan() str
+    }
+
+    Owner "1" --> "1" Pet : owns
+    Pet "1" --> "*" Task : has
+    Scheduler "1" --> "*" Task : schedules
+    Scheduler ..> Owner : uses constraints
