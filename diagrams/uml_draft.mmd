@@ -6,7 +6,7 @@ classDiagram
         +str name
         +int available_minutes
         +list~str~ preferences
-        +Pet pet
+        +list~Pet~ pets
         +add_pet(pet Pet) None
         +set_available_minutes(minutes int) None
         +add_preference(preference str) None
@@ -22,10 +22,17 @@ classDiagram
         +get_tasks() list~Task~
     }
 
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
     class Task {
         +str name
         +int duration_minutes
-        +str priority
+        +Priority priority
         +str recurrence
         +bool completed
         +priority_rank() int
@@ -34,15 +41,16 @@ classDiagram
     }
 
     class Scheduler {
-        +int time_budget
-        +list~Task~ tasks
+        +Owner owner
         +sort_by_priority(tasks list~Task~) list~Task~
         +filter_by_budget(tasks list~Task~) list~Task~
         +build_plan() list~Task~
         +explain_plan() str
     }
 
-    Owner "1" --> "1" Pet : owns
+    Owner "1" --> "*" Pet : owns
+    Owner "1" --> "1" Scheduler : has
     Pet "1" --> "*" Task : has
-    Scheduler "1" --> "*" Task : schedules
-    Scheduler ..> Owner : uses constraints
+    Task --> Priority : uses
+    Scheduler ..> Owner : reads constraints
+    Scheduler ..> Pet : reads tasks

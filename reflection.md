@@ -10,6 +10,8 @@ The user should be able to:
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+I had 4 classes: Owner, Pet, Task, and Scheduler
+
 
 **b. Design changes**
 
