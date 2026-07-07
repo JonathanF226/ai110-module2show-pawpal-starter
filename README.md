@@ -12,6 +12,20 @@ A busy pet owner needs help staying consistent with pet care. They want an assis
 
 Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
 
+## ✨ Features
+
+The scheduling engine (`Scheduler`, with helpers on `Task`/`Pet`) implements:
+
+- **Priority sorting** — orders tasks HIGH → LOW, breaking ties so shorter tasks come first.
+- **Sorting by time** — orders tasks by scheduled start time (minutes from midnight), with unscheduled tasks pushed to the end.
+- **Filtering by pet and status** — returns tasks matching a completion status and/or pet name (case-insensitive), combined with AND.
+- **Budget-aware planning** — greedily fits the highest-priority tasks into the owner's daily time budget.
+- **Conflict warnings** — flags tasks booked at the same start time: HARD conflicts (same pet, can't be in two places) and soft conflicts (owner double-booked).
+- **Daily/weekly recurrence** — completing a recurring task auto-spawns a fresh copy for its next occurrence; one-off tasks don't respawn.
+- **Plan explanation** — produces a human-readable summary of the chosen plan and the time it consumes.
+
+See [📐 Smarter Scheduling](#-smarter-scheduling) below for the methods and algorithmic details behind each feature.
+
 ## What you will build
 
 Your final app should:
@@ -56,19 +70,41 @@ Plan for Alex (55/60 min):
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The tests in `tests/test_pawpal.py` cover the core scheduling behaviors:
+
+- **Task basics** — `mark_complete()` flips a task's status; adding a task grows the pet's task count.
+- **Sorting correctness** — `sort_by_time()` returns tasks in chronological order, correctly placing a midnight task (`start_time=0`) first and pushing unscheduled tasks (`None`) to the end.
+- **Recurrence logic** — completing a `daily` task marks it done and spawns a fresh, uncompleted copy for the next occurrence; a `once` task spawns nothing.
+- **Conflict detection** — two tasks at the same start time are flagged as a **HARD** conflict (same pet) or **soft** conflict (different pets); a clean schedule produces no warnings.
+
+Sample output from a successful run:
 
 ```
-# Paste your pytest output here
+============================= test session starts ==============================
+platform darwin -- Python 3.11.5, pytest-7.4.0, pluggy-1.0.0
+rootdir: .../ai110-module2show-pawpal-starter
+collected 7 items
+
+tests/test_pawpal.py::test_mark_complete_changes_status PASSED           [ 14%]
+tests/test_pawpal.py::test_add_task_increases_count PASSED               [ 28%]
+tests/test_pawpal.py::test_sort_by_time_is_chronological PASSED          [ 42%]
+tests/test_pawpal.py::test_completing_daily_task_spawns_next_occurrence PASSED [ 57%]
+tests/test_pawpal.py::test_completing_once_task_spawns_nothing PASSED    [ 71%]
+tests/test_pawpal.py::test_detect_conflicts_flags_duplicate_times PASSED [ 85%]
+tests/test_pawpal.py::test_detect_conflicts_clear_schedule PASSED        [100%]
+
+============================== 7 passed in 0.01s ===============================
 ```
+
+### Confidence Level: ⭐⭐⭐⭐☆ (4/5)
+
+All 7 tests pass and cover the highest-risk logic: chronological sorting (including the `start_time=0` vs `None` edge case), recurrence spawning, and both conflict types. One star is withheld because a few edge cases remain untested — greedy budget packing near its limit, filtering combinations (`pet_name` + `completed`), repeated completion of already-spawned recurrences, and conflict detection based on overlapping *durations* rather than exact start-time matches. Reliable for the demonstrated behaviors; broaden coverage before relying on it in production.
 
 ## 📐 Smarter Scheduling
 
@@ -84,12 +120,108 @@ behaviors. Each is a focused method on `Scheduler` (or `Task`/`Pet`).
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### The interface
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app (`app.py`) is organized top to bottom around a single session:
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+- **Owner & budget** — set the owner's name and a daily time budget (in minutes) that caps how much care fits in a day.
+- **Pets** — add pets (name, species, age); each stays in memory for the session and shows its task count.
+- **Tasks** — add tasks to a chosen pet with a title, duration, priority (low/medium/high), and recurrence (once/daily/weekly).
+- **Task list** — filter tasks by status (all/pending/completed) and pet, and sort by **priority** or **start time**; a "Complete" button marks pending tasks done.
+- **Build Schedule** — generates the day's plan, showing conflict warnings, a budget summary, and the ordered list of scheduled tasks.
+
+### An example workflow
+
+1. Enter the owner **Alex** with a **60-minute** daily budget.
+2. Add a pet — **Rex** (dog) — then add another, **Milo** (cat).
+3. Add tasks: Rex gets a *Morning walk* (HIGH, 25 min, daily) and *Give medication* (HIGH, 5 min, daily); Milo gets *Feed* (MEDIUM, 10 min, daily) and *Clean litter box* (HIGH, 20 min, daily).
+4. In the task list, filter to **Rex** and sort by **priority** to see his most important tasks first.
+5. Mark *Feed* complete — because it's a daily task, the app auto-adds a fresh copy for the next occurrence.
+6. Click **Generate schedule** to view today's plan, along with any conflict warnings and how much of the 60-minute budget is used.
+
+### Key Scheduler behaviors on display
+
+- **Sorting** — the same task set reorders by priority (HIGH → LOW, shorter first on ties) or by start time (earliest first, unscheduled tasks last).
+- **Filtering** — narrowing by pet and/or completion status combines the two predicates.
+- **Conflict warnings** — two tasks at the same time for one pet raise a **HARD** conflict; across two pets they raise a **soft** (double-booked) conflict.
+- **Recurrence** — completing a daily/weekly task spawns its next occurrence; a one-off task does not.
+- **Budget-aware planning** — the plan greedily packs the highest-priority tasks until the daily minute budget is exhausted.
+
+### Sample CLI output
+
+Running the demo harness exercises every Scheduler method against a fixed set of pets and tasks:
+
+```bash
+python main.py
+```
+
+```
+Completed 'Feed' -> spawned next occurrence: True
+
+=== As entered (unsorted) ===
+  18:00  Evening walk (HIGH, 25 min, pending)
+  07:00  Morning walk (HIGH, 25 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+  07:00  Give medication (HIGH, 5 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+  12:00  Clean litter box (HIGH, 20 min, pending)
+  08:00  Feed (MEDIUM, 10 min, done)
+  08:00  Feed (MEDIUM, 10 min, pending)
+
+=== Sorted by time ===
+  07:00  Morning walk (HIGH, 25 min, pending)
+  07:00  Give medication (HIGH, 5 min, pending)
+  08:00  Feed (MEDIUM, 10 min, done)
+  08:00  Feed (MEDIUM, 10 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+  12:00  Clean litter box (HIGH, 20 min, pending)
+  18:00  Evening walk (HIGH, 25 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+
+=== Sorted by priority ===
+  07:00  Give medication (HIGH, 5 min, pending)
+  12:00  Clean litter box (HIGH, 20 min, pending)
+  18:00  Evening walk (HIGH, 25 min, pending)
+  07:00  Morning walk (HIGH, 25 min, pending)
+  08:00  Feed (MEDIUM, 10 min, done)
+  08:00  Feed (MEDIUM, 10 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+
+=== Filter: pending only ===
+  18:00  Evening walk (HIGH, 25 min, pending)
+  07:00  Morning walk (HIGH, 25 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+  07:00  Give medication (HIGH, 5 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+  12:00  Clean litter box (HIGH, 20 min, pending)
+  08:00  Feed (MEDIUM, 10 min, pending)
+
+=== Filter: completed only ===
+  08:00  Feed (MEDIUM, 10 min, done)
+
+=== Filter: Rex's tasks ===
+  18:00  Evening walk (HIGH, 25 min, pending)
+  07:00  Morning walk (HIGH, 25 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+  07:00  Give medication (HIGH, 5 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+
+=== Filter: Rex's pending tasks ===
+  18:00  Evening walk (HIGH, 25 min, pending)
+  07:00  Morning walk (HIGH, 25 min, pending)
+  --:--  Brush coat (LOW, 15 min, pending)
+  07:00  Give medication (HIGH, 5 min, pending)
+  12:00  Play fetch (MEDIUM, 15 min, pending)
+
+=== Conflict Check ===
+  ⚠️ HARD conflict at 07:00: Rex has 2 tasks at once ('Morning walk', 'Give medication').
+  ⚠️ Soft conflict at 12:00: 2 tasks across pets Milo, Rex ('Play fetch', 'Clean litter box').
+
+=== Today's Schedule ===
+Plan for Alex (60/60 min):
+  1. Give medication — HIGH, 5 min
+  2. Clean litter box — HIGH, 20 min
+  3. Evening walk — HIGH, 25 min
+  4. Feed — MEDIUM, 10 min
+```

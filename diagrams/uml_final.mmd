@@ -1,0 +1,64 @@
+classDiagram
+    %% PawPal+ — pet care planning app
+    %% Owner has a Pet and a Scheduler, a Pet has many Tasks, a Scheduler builds a daily plan.
+
+    class Owner {
+        +str name
+        +int available_minutes
+        +list~str~ preferences
+        +list~Pet~ pets
+        +Scheduler scheduler
+        +add_pet(pet Pet) None
+        +set_available_minutes(minutes int) None
+        +add_preference(preference str) None
+        +all_tasks() list~Task~
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +int age
+        +list~Task~ tasks
+        +add_task(task Task) None
+        +remove_task(task Task) None
+        +complete_task(task Task) Task
+        +get_tasks() list~Task~
+    }
+
+    class Priority {
+        <<enumeration>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class Task {
+        +str name
+        +int duration_minutes
+        +Priority priority
+        +str recurrence
+        +bool completed
+        +int start_time
+        +priority_rank() int
+        +mark_complete() None
+        +is_recurring() bool
+        +next_occurrence() Task
+    }
+
+    class Scheduler {
+        +Owner owner
+        +sort_by_priority(tasks list~Task~) list~Task~
+        +sort_by_time(tasks list~Task~) list~Task~
+        +filter_tasks(completed bool, pet_name str) list~Task~
+        +filter_by_budget(tasks list~Task~) list~Task~
+        +detect_conflicts() list~str~
+        +build_plan() list~Task~
+        +explain_plan() str
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Owner "1" --> "1" Scheduler : has
+    Pet "1" --> "*" Task : has
+    Task --> Priority : uses
+    Scheduler ..> Owner : reads constraints
+    Scheduler ..> Pet : reads tasks

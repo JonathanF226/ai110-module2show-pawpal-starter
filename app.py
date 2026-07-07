@@ -117,23 +117,55 @@ else:
 tasks = owner.all_tasks()
 if tasks:
     st.write("Current tasks:")
-    header = st.columns([2, 3, 2, 2, 2, 2])
-    for col, label in zip(
-        header, ["Pet", "Title", "Duration", "Priority", "Recurrence", "Status"]
-    ):
-        col.markdown(f"**{label}**")
 
+    # Filter + sort controls, backed by the Scheduler's own methods.
+    fcol1, fcol2, fcol3 = st.columns(3)
+    with fcol1:
+        status_filter = st.selectbox("Show", ["all", "pending", "completed"])
+    with fcol2:
+        pet_filter = st.selectbox("Pet", ["all"] + [p.name for p in owner.pets])
+    with fcol3:
+        sort_mode = st.selectbox("Sort by", ["priority", "start time"])
+
+    completed_arg = {"all": None, "pending": False, "completed": True}[status_filter]
+    filtered = owner.scheduler.filter_tasks(
+        completed=completed_arg,
+        pet_name=None if pet_filter == "all" else pet_filter,
+    )
+    if sort_mode == "priority":
+        filtered = owner.scheduler.sort_by_priority(filtered)
+    else:
+        filtered = owner.scheduler.sort_by_time(filtered)
+
+    # Map each task back to its pet name for display.
+    pet_of = {id(t): p.name for p in owner.pets for t in p.get_tasks()}
+
+    if filtered:
+        st.table(
+            [
+                {
+                    "Pet": pet_of.get(id(t), "—"),
+                    "Title": t.name,
+                    "Duration": f"{t.duration_minutes} min",
+                    "Priority": t.priority.name,
+                    "Recurrence": t.recurrence,
+                    "Status": "✅ done" if t.completed else "⏳ pending",
+                }
+                for t in filtered
+            ]
+        )
+    else:
+        st.info("No tasks match the current filters.")
+
+    # Completion controls (kept interactive; the table above is read-only).
+    st.caption("Mark tasks complete:")
     for pi, p in enumerate(owner.pets):
         for ti, t in enumerate(p.get_tasks()):
-            c = st.columns([2, 3, 2, 2, 2, 2])
-            c[0].write(p.name)
-            c[1].write(t.name)
-            c[2].write(f"{t.duration_minutes} min")
-            c[3].write(t.priority.name)
-            c[4].write(t.recurrence)
             if t.completed:
-                c[5].write("✅ done")
-            elif c[5].button("Complete", key=f"complete_{pi}_{ti}"):
+                continue
+            c = st.columns([5, 2])
+            c[0].write(f"{p.name} — {t.name} ({t.priority.name}, {t.duration_minutes} min)")
+            if c[1].button("Complete", key=f"complete_{pi}_{ti}"):
                 nxt = p.complete_task(t)
                 if nxt is not None:
                     st.success(f"Completed '{t.name}' — added next {t.recurrence} occurrence.")
@@ -149,20 +181,32 @@ st.subheader("Build Schedule")
 st.caption("Prioritizes tasks and fits them within the owner's daily time budget.")
 
 if st.button("Generate schedule"):
+    # Surface any scheduling conflicts before showing the plan.
+    conflicts = owner.scheduler.detect_conflicts()
+    for warning in conflicts:
+        st.warning(warning)
+
     plan = owner.scheduler.build_plan()
     if not plan:
         st.info("No tasks fit today's schedule. Add tasks or raise the time budget.")
     else:
+        used = sum(t.duration_minutes for t in plan)
+        budget = owner.available_minutes
+        st.success(
+            f"Scheduled {len(plan)} task(s) — using {used}/{budget} min "
+            f"({budget - used} min free)."
+        )
         st.write("Today's plan:")
         st.table(
             [
                 {
-                    "order": i,
-                    "title": t.name,
-                    "priority": t.priority.name,
-                    "duration_minutes": t.duration_minutes,
+                    "Order": i,
+                    "Title": t.name,
+                    "Priority": t.priority.name,
+                    "Duration": f"{t.duration_minutes} min",
                 }
                 for i, t in enumerate(plan, 1)
             ]
         )
-        st.code(owner.scheduler.explain_plan())
+        if not conflicts:
+            st.caption("✅ No scheduling conflicts detected.")
