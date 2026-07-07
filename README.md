@@ -47,11 +47,11 @@ pip install -r requirements.txt
 Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
 
 ```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
+=== Today's Schedule ===
+Plan for Alex (55/60 min):
+  1. Clean litter box — HIGH, 20 min
+  2. Morning walk — HIGH, 25 min
+  3. Feed — MEDIUM, 10 min
 ```
 
 ## 🧪 Testing PawPal+
@@ -72,14 +72,15 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+Beyond the basic priority-and-budget plan, PawPal+ implements four scheduling
+behaviors. Each is a focused method on `Scheduler` (or `Task`/`Pet`).
 
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.sort_by_priority()`, `Scheduler.sort_by_time()` | Priority sort orders HIGH→LOW, breaking ties by shorter duration. Time sort orders by `start_time` (minutes from midnight) and pushes unscheduled tasks (`None`) to the end. Both are non-mutating O(n log n) sorts. |
+| Filtering (by pet / status) | `Scheduler.filter_tasks(completed=..., pet_name=...)` | Single O(n) pass; filters by completion status and/or pet name (case-insensitive), combining them with AND. `build_plan()` reuses it via `filter_tasks(completed=False)`. |
+| Conflict detection | `Scheduler.detect_conflicts()` | Buckets scheduled, pending tasks by `start_time`; a slot with 2+ tasks is a conflict. **Same-pet** clashes are HARD (a pet can't be two places at once); **different-pet** clashes are soft (owner double-booked). Returns warning strings, never raises. Tradeoff: checks exact start-time matches only, not overlapping durations. |
+| Recurring tasks | `Task.is_recurring()`, `Task.next_occurrence()`, `Pet.complete_task()` | Completing a `daily`/`weekly` task via `complete_task()` marks it done and auto-spawns a fresh, uncompleted copy for the next occurrence. One-off (`once`) tasks return `None` and do not respawn. |
 
 ## 📸 Demo Walkthrough
 
